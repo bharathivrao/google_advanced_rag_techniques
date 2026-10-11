@@ -2,9 +2,8 @@ import os
 import logging
 from dotenv import load_dotenv
 from google.cloud.sql.connector import Connector, IPTypes
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_google_vertexai import VertexAI
-from langchain_community.vectorstores import PGVector
+from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+from langchain_postgres import PGVector
 from langchain_core.prompts import PromptTemplate
 
 load_dotenv()
@@ -52,16 +51,18 @@ def main():
         project=PROJECT_ID, 
         location=REGION)
 
-    llm = VertexAI(model_name="gemini-3.5-flash", 
-                    project=PROJECT_ID, 
-                    location=REGION, 
-                    temperature=0.5)
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-3.5-flash",
+        project=PROJECT_ID,
+        location=REGION,
+        vertexai=True,
+    )
 
     pg_conn_str = f"postgresql+pg8000://{DB_USER}:{DB_PASS}@placeholder/{DB_NAME}"
     store = PGVector(
         collection_name=COLLECTION_NAME,
-        embedding_function=embeddings,
-        connection_string=pg_conn_str,
+        embeddings=embeddings,
+        connection=pg_conn_str,
         engine_args={"creator": getconn}
     )
     retriever = store.as_retriever(search_kwargs={"k": 2})

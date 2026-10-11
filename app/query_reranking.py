@@ -2,11 +2,11 @@ import os
 import logging
 from dotenv import load_dotenv
 from google.cloud.sql.connector import Connector, IPTypes
-from langchain_google_vertexai import VertexAIEmbeddings
-from langchain_community.vectorstores import PGVector
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_postgres import PGVector
 
 # Reranking Imports
-from langchain.retrievers import ContextualCompressionRetriever
+from langchain_classic.retrievers import ContextualCompressionRetriever
 from langchain_google_community.vertex_rank import VertexAIRank
 
 load_dotenv()
@@ -35,14 +35,19 @@ def getconn():
         )
 
 def main():
-    embeddings = VertexAIEmbeddings(model_name="gemini-embedding-001", project=PROJECT_ID, location=REGION)
+    embeddings = GoogleGenerativeAIEmbeddings(
+        model="gemini-embedding-001",
+        project=PROJECT_ID,
+        location=REGION,
+        vertexai=True,
+    )
     pg_conn_str = f"postgresql+pg8000://{DB_USER}:{DB_PASS}@placeholder/{DB_NAME}"
 
     print(f"Connecting to collection: {COLLECTION_NAME}")
     store = PGVector(
         collection_name=COLLECTION_NAME,
-        embedding_function=embeddings,
-        connection_string=pg_conn_str,
+        embeddings=embeddings,
+        connection=pg_conn_str,
         engine_args={"creator": getconn}
     )
 
@@ -73,7 +78,7 @@ def main():
         if not reranked_docs:
             print("No documents returned. Check if the collection exists and is populated.")
 
-        print(f"--- Top 3 Reranked Results ---")
+        print("--- Top 3 Reranked Results ---")
         for i, doc in enumerate(reranked_docs):
             print(f"Result {i+1} (Score: {doc.metadata.get('relevance_score', 'N/A')}):")
             print(f"  {doc.page_content[:200]}...\n")

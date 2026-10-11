@@ -1,61 +1,94 @@
 import os
-import sqlalchemy
-from google.cloud.sql.connector import Connector, IPTypes
 import logging
+import sqlalchemy
+
 from dotenv import load_dotenv
+from google.cloud.sql.connector import Connector, IPTypes
+
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
-# Config
-project_id = os.getenv("PROJECT_ID")
-region = os.getenv("REGION")
-instance_name = os.getenv("SQL_INSTANCE_NAME")
-db_user = os.getenv("SQL_USER")
-db_pass = os.getenv("SQL_PASSWORD")
-db_name = os.getenv("SQL_DATABASE_NAME")
-instance_connection_name = f"{project_id}:{region}:{instance_name}"
+# ---------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------
 
-print(f"Project ID: {project_id}")
-print(f"Region: {region}")
-print(f"Instance Name: {instance_name}")
-print(f"DB User: {db_user}")
-print(f"DB Name: {db_name}")
-print(f"Instance Connection Name: {instance_connection_name}")
-print(f"DB Password: {db_pass}")
+PROJECT_ID = os.getenv("PROJECT_ID")
+REGION = os.getenv("REGION")
+INSTANCE_NAME = os.getenv("SQL_INSTANCE_NAME")
 
-# Initialize Connector object
+DB_USER = os.getenv("SQL_USER")
+DB_PASS = os.getenv("SQL_PASSWORD")
+DB_NAME = os.getenv("SQL_DATABASE_NAME")
+
+INSTANCE_CONNECTION_NAME = (
+    f"{PROJECT_ID}:{REGION}:{INSTANCE_NAME}"
+)
+
+
+# ---------------------------------------------------------
+# Cloud SQL Connector
+# ---------------------------------------------------------
+
 connector = Connector()
 
+
 def getconn():
-    conn = connector.connect(
-        instance_connection_name,
+    return connector.connect(
+        INSTANCE_CONNECTION_NAME,
         "pg8000",
-        user=db_user,
-        password=db_pass,
-        db=db_name,
+        user=DB_USER,
+        password=DB_PASS,
+        db=DB_NAME,
         ip_type=IPTypes.PUBLIC,
     )
-    return conn
+
+
+# ---------------------------------------------------------
+# Enable pgvector
+# ---------------------------------------------------------
 
 def enable_pgvector():
-    pool = sqlalchemy.create_engine(
+
+    engine = sqlalchemy.create_engine(
         "postgresql+pg8000://",
         creator=getconn,
     )
-    with pool.connect() as db_conn:
-        # Check if extension exists
-        result = db_conn.execute(sqlalchemy.text("SELECT extname FROM pg_extension WHERE extname = 'vector';")).fetchone()
-        if result:
-            logging.info("pgvector extension is already enabled.")
-        else:
-            logging.info("Enabling pgvector extension...")
-            db_conn.execute(sqlalchemy.text("CREATE EXTENSION IF NOT EXISTS vector;"))
-            db_conn.commit()
-            logging.info("pgvector extension enabled successfully.")
+
+    try:
+
+        with engine.begin() as conn:
+
+            conn.execute(
+                sqlalchemy.text(
+                    "CREATE EXTENSION IF NOT EXISTS vector"
+                )
+            )
+
+            logging.info(
+                "pgvector extension is enabled."
+            )
+
+    finally:
+
+        engine.dispose()
+
+
+# ---------------------------------------------------------
+# Main
+# ---------------------------------------------------------
 
 if __name__ == "__main__":
+
     try:
+
+        logging.info(
+            "Setting up database %s",
+            DB_NAME,
+        )
+
         enable_pgvector()
+
     finally:
+
         connector.close()
